@@ -1,62 +1,73 @@
 #!/bin/bash
 
-# Check if the required number of arguments is provided
-if [ "$#" -ne 2 ]; then
-	echo "Usage: $0 <source_branch> <target_branch>"
-	exit 1
-fi
+function check_branch_exists {
+    local branch="$1"
+    git show-ref --verify --quiet "refs/heads/$branch"
+    local branch_exists=$?
+    if [ $branch_exists -ne 0 ]; then
+        echo "Error: The branch ($branch) does not exist."
+        exit 1
+    fi
+}
 
-# Store branch names
-source_branch="$1"
-target_branch="$2"
+function update_branch {
+    local branch="$1"
+    git checkout "$branch"
+    if [ $? -ne 0 ]; then
+        echo "Error: Unable to checkout branch ($branch)."
+        exit 1
+    fi
 
-# Check if both branches exist
-git show-ref --verify --quiet "refs/heads/$source_branch"
-source_exists=$?
+    git pull origin "$branch"
+    if [ $? -ne 0 ]; then
+        echo "Error: Unable to fetch and merge changes from the remote repository into branch ($branch)."
+        exit 1
+    fi
+}
 
-git show-ref --verify --quiet "refs/heads/$target_branch"
-target_exists=$?
+function git_merge_branches {
+    # Check if the required number of arguments is provided
+    if [ "$#" -lt 1 ]; then
+        echo "Usage: git_merge_branches <source_branch> [target_branch]"
+        exit 1
+    fi
 
-if [ $source_exists -ne 0 ] || [ $target_exists -ne 0 ]; then
-	echo "Error: Either the source branch ($source_branch) or the target branch ($target_branch) does not exist."
-	exit 1
-fi
+    # Store branch names
+    local source_branch="$1"
+    local target_branch="${2:-$(git rev-parse --abbrev-ref HEAD)}"
 
-# Checkout target branch
-git checkout "$target_branch"
-if [ $? -ne 0 ]; then
-	echo "Error: Unable to checkout target branch ($target_branch)."
-	exit 1
-fi
+    # Check if both branches exist
+    check_branch_exists "$source_branch" || exit 1
+    check_branch_exists "$target_branch" || exit 1
 
-# Update branches
-git fetch
-if [ $? -ne 0 ]; then
-	echo "Error: Unable to fetch changes."
-	exit 1
-fi
+    # Update source branch
+    update_branch "$source_branch" || exit 1
 
-# Perform merge
-git merge "$source_branch"
-merge_status=$?
+    # Checkout and update target branch
+    update_branch "$target_branch" || exit 1
 
-if [ $merge_status -eq 0 ]; then
-	echo "Merge of $source_branch into $target_branch completed successfully."
+    # Perform merge
+    git merge "$source_branch"
+    local merge_status=$?
 
-	# Push the merged changes to the remote repository
-	git push origin "$target_branch"
-	if [ $? -ne 0 ]; then
-		echo "Error: Unable to push the merged changes to the remote repository."
-		exit 1
-	fi
+    if [ $merge_status -eq 0 ]; then
+        # Push the merged changes to the remote repository
+        git push origin "$target_branch"
+        if [ $? -ne 0 ]; then
+            echo "Error: Unable to push the merged changes to the remote repository."
+            exit 1
+        fi
 
-	echo "Merge of $source_branch into $target_branch completed successfully, and changes were pushed to the remote repository."
+        echo "Merge of $source_branch into $target_branch completed successfully, and changes were pushed to the remote repository."
+        exit 0
+    elif [ $merge_status -eq 1 ]; then
+        echo "Merge conflict detected! Please resolve conflicts and then commit the result."
+        exit 1
+    else
+        echo "Error: Unable to merge branches."
+        exit 1
+    fi
+}
 
-	exit 0
-elif [ $merge_status -eq 1 ]; then
-	echo "Merge conflict detected! Please resolve conflicts and then commit the result."
-	exit 1
-else
-	echo "Error: Unable to merge branches."
-	exit 1
-fi
+# Call the function with command line arguments
+git_merge_branches "$1" "$2"
