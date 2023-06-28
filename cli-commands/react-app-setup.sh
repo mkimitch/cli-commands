@@ -165,11 +165,13 @@ ReactDOM.render(
 EOL
 
 # Update the scripts in package.json using Python
-python3 -c "import json; \
-    data = json.load(open('package.json')); \
-    data['scripts']['start'] = 'webpack serve --mode development --open'; \
-    data['scripts']['build'] = 'webpack --mode production'; \
-    json.dump(data, open('package.json', 'w'), indent=2)"
+python -c "import json; \
+	data = json.load(open('package.json')); \
+	print('Loaded package.json:', data); \
+	data.setdefault('scripts', {})['start'] = 'webpack serve --mode development --open'; \
+	data['scripts']['build'] = 'webpack --mode production'; \
+	json.dump(data, open('package.json', 'w'), indent=2); \
+	print('Updated package.json:', data)"
 
 end_time=$(date +%s)
 time_elapsed=$((end_time - start_time))
