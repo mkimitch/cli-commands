@@ -1,0 +1,11 @@
+{
+	"avoid": [
+		"node_modules",
+		".git"
+	],
+	"omit_extensions": [
+		"tmp",
+		"log",
+		"svg"
+	]
+}
